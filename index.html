@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<meta charset="utf-8">
+	<title>Lavamap Test</title>
+	<style>
+		body {
+			margin: 0;
+			font-family: system-ui;
+		}
+
+		#sidebar {
+			height: 100%;
+			position: absolute;
+			top: 0;
+			right: 0;
+			width: 20%;
+			box-shadow: -2px 0px 4px rgb(0 0 0 / 26%);
+			background: #000000bd;
+			text-shadow: 0px 0px 4px rgb(55 55 55);
+		}
+
+		h2 {
+			text-align: center;
+			color: white;
+		}
+
+		input {
+			height: 20px;
+			margin: 10px;
+			vertical-align: middle;
+		}
+
+		#removeAllButton {
+			width: 100%;
+			height: 40px;
+			position: absolute;
+			bottom: 0;
+			background: linear-gradient(0deg, #9a0000, red);
+			color: white;
+			text-shadow: 1px 1px 4px black;
+			outline: 0;
+			border: none;
+			cursor: pointer;
+		}
+
+		#removeAllButton:hover {
+			filter: brightness(0.9);
+		}
+
+		#removeAllButton:active {
+			filter: brightness(0.8);
+		}
+
+		#canvasContainer {
+			width: 80%;
+			height: 100%;
+			position: relative;
+		}
+
+		label {
+			color: white;
+		}
+	</style>
+	<link rel="shortcut icon" href="https://resource1.lavamap.com/img/favicon.ico">
+</head>
+
+<body>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+	<script src="./OrbitControls.js"></script>
+	<div id="canvasContainer"></div>
+	<div id="sidebar">
+		<div id="primitives">
+			<h2>Primitives</h2>
+			<input type="radio" id="cube" name="action" value="cube" checked>
+			<label for="cube">Blue Box</label>
+			<br>
+			<input type="radio" id="cylinder" name="action" value="cylinder">
+			<label for="cylinder">Red Cylinder</label>
+			<br>
+			<input type="radio" id="sphere" name="action" value="sphere">
+			<label for="sphere">Green Sphere</label>
+			<br>
+			<input type="radio" id="remove" name="action" value="remove">
+			<label for="remove">Remove</label>
+		</div>
+		<button id="removeAllButton">Remove All</button>
+	</div>
+	<script>
+		// Utility variables
+		const mouse = new THREE.Vector2();
+		const raycaster = new THREE.Raycaster();
+
+		// Camera, scene, and renderer setup
+		const scene = new THREE.Scene();
+
+		const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+		camera.position.y = 10;
+
+		const renderer = new THREE.WebGLRenderer({ alpha: true });
+		renderer.setSize(window.innerWidth, window.innerHeight);
+		document.getElementById("canvasContainer").appendChild(renderer.domElement);
+
+		// Lighting
+		const directionalLight = new THREE.DirectionalLight();
+		directionalLight.position.set(250, 1000, -400);
+		scene.add(directionalLight);
+		scene.add(new THREE.AmbientLight(1))
+
+		// Camera controls
+		const controls = new THREE.OrbitControls(camera, renderer.domElement);
+		controls.mouseButtons = { LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE };
+
+		// Add grid to show the orientation of the camera
+		const gridHelper = new THREE.GridHelper(100, 100);
+		scene.add(gridHelper);
+
+		// Create geometries and materials outside event listener for reuse
+		const geometries = {
+			"cube": new THREE.BoxGeometry(),
+			"cylinder": new THREE.CylinderGeometry(),
+			"sphere": new THREE.SphereGeometry(),
+		}
+		const materials = {
+			"cube": new THREE.MeshStandardMaterial({ color: new THREE.Color(0, 0, 1) }),
+			"cylinder": new THREE.MeshStandardMaterial({ color: new THREE.Color(1, 0, 0) }),
+			"sphere": new THREE.MeshStandardMaterial({ color: new THREE.Color(0, 1, 0) }),
+		}
+
+		// Creates currently selected primitive when clicked
+		renderer.domElement.addEventListener("click", function (event) {
+			// Map clicked coordinates to mouse position
+			mouse.set((event.clientX / renderer.domElement.clientWidth) * 2 - 1, -(event.clientY / renderer.domElement.clientHeight) * 2 + 1);
+
+			raycaster.setFromCamera(mouse, camera);
+
+			// No need to recursively search, as these are just primitives
+			const intersects = raycaster.intersectObjects(scene.children, false);
+			if (intersects.length > 0) {
+				const intersect = intersects[0];
+				const action = document.querySelector('input[name="action"]:checked').value;
+				if (action === "remove") {
+					if (intersect.object !== gridHelper) {
+						intersect.object.parent.remove(intersect.object);
+						render();
+					}
+					return;
+				}
+
+				const primitive = new THREE.Mesh(geometries[action], materials[action]);
+				primitive.position.copy(intersect.point.setY(intersect.point.y + primitive.scale.y / 2));
+				scene.add(primitive);
+
+				render();
+			}
+		});
+
+		// Renders the scene view
+		const render = function () {
+			renderer.render(scene, camera);
+		}
+
+		// Only render when camera view is changed
+		controls.addEventListener("change", render);
+
+		// Initial rendering
+		render();
+
+		// Removes all primitives when clicking bottom sidebar button
+		document.getElementById("removeAllButton").addEventListener("click", function () {
+			const children = scene.children;
+			for (let i = children.length - 1; i >= 0; i--) {
+				const child = children[i];
+				if (child instanceof THREE.Mesh) {
+					scene.remove(child);
+				}
+			}
+			render();
+		});
+
+		// Fix the renderer when user resizes the window
+		window.addEventListener("resize", function () {
+			renderer.setSize(renderer.domElement.parentElement.clientWidth, renderer.domElement.parentElement.clientHeight);
+			camera.aspect = renderer.domElement.parentElement.clientWidth / renderer.domElement.parentElement.clientHeight;
+			camera.updateProjectionMatrix();
+		});
+	</script>
+</body>
+
+</html>
